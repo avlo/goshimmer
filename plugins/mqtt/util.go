@@ -12,34 +12,36 @@ func publishMessage(ev *tangle.CachedMessageEvent) {
 
 	ev.Message.Consume(func(msg *tangle.Message) {
 
-		if mqttBroker.HasSubscribers(topicMessagesSolid) {
+		for _, topic := range Topics() {
+			if mqttBroker.HasSubscribers(topic) {
 
-			messageResponse := message{
-				MessageID: msg.ID().String(),
-				IssuerID:  identity.New(msg.IssuerPublicKey()).ID().String(),
-				Timestamp: msg.IssuingTime().UnixNano(),
-				Payload:   msg.Payload().Bytes(),
-				Nonce:     msg.Nonce(),
-				Signature: msg.Signature().String(),
+				messageResponse := message{
+					MessageID: msg.ID().String(),
+					IssuerID:  identity.New(msg.IssuerPublicKey()).ID().String(),
+					Timestamp: msg.IssuingTime().UnixNano(),
+					Payload:   msg.Payload().Bytes(),
+					Nonce:     msg.Nonce(),
+					Signature: msg.Signature().String(),
+				}
+
+				msg.ForEachStrongParent(func(parent tangle.MessageID) {
+					messageResponse.StrongParents = append(messageResponse.StrongParents, parent.String())
+				})
+
+				msg.ForEachWeakParent(func(parent tangle.MessageID) {
+					messageResponse.WeakParents = append(messageResponse.WeakParents, parent.String())
+				})
+
+				// Serialize here instead of using publishOnTopic to avoid double JSON marshalling
+				jsonPayload, err := json.Marshal(messageResponse)
+				if err != nil {
+					log.Warn(err.Error())
+					return
+				}
+
+				mqttBroker.Send(topic, jsonPayload)
+
 			}
-
-			msg.ForEachStrongParent(func(parent tangle.MessageID) {
-				messageResponse.StrongParents = append(messageResponse.StrongParents, parent.String())
-			})
-
-			msg.ForEachWeakParent(func(parent tangle.MessageID) {
-				messageResponse.WeakParents = append(messageResponse.WeakParents, parent.String())
-			})
-
-			// Serialize here instead of using publishOnTopic to avoid double JSON marshalling
-			jsonPayload, err := json.Marshal(messageResponse)
-			if err != nil {
-				log.Warn(err.Error())
-				return
-			}
-
-			mqttBroker.Send(topicMessagesSolid, jsonPayload)
-
 		}
 	})
 
