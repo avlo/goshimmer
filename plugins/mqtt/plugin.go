@@ -94,25 +94,34 @@ func run(*node.Plugin) {
 		log.Panicf("Failed to start as daemon: %s", err)
 	}
 
-	onMessageSolid := events.NewClosure(func(cachedMsgEvent *tangle.CachedMessageEvent) {
-		if _, added := messageWorkerPool.TrySubmit(cachedMsgEvent); added {
-			return // Avoid Release (done inside workerpool task)
-		}
-		cachedMsgEvent.MessageMetadata.Release()
-		cachedMsgEvent.Message.Release()
-	})
+	onMessageAttachedClosure := createEventsNewClosure()
+	onMessageSolidClosure := createEventsNewClosure()
+	onMissingMessageReceivedClosure := createEventsNewClosure()
+	onMessageMissingClosure := createEventsNewClosure()
+	onMessageUnsolidifiableClosure := createEventsNewClosure()
+	onMessageRemovedClosure := createEventsNewClosure()
 
 	if err := daemon.BackgroundWorker("MQTT Events", func(shutdownSignal <-chan struct{}) {
 		log.Info("Starting MQTT Events ... done")
 
-		messagelayer.Tangle().Events.MessageSolid.Attach(onMessageSolid)
+		messagelayer.Tangle().Events.MessageAttached.Attach(onMessageAttachedClosure)
+		messagelayer.Tangle().Events.MessageSolid.Attach(onMessageSolidClosure)
+		messagelayer.Tangle().Events.MissingMessageReceived.Attach(onMissingMessageReceivedClosure)
+		messagelayer.Tangle().Events.MessageMissing.Attach(onMessageMissingClosure)
+		messagelayer.Tangle().Events.MessageUnsolidifiable.Attach(onMessageUnsolidifiableClosure)
+		messagelayer.Tangle().Events.MessageRemoved.Attach(onMessageRemovedClosure)
 
 		messageWorkerPool.Start()
 
 		<-shutdownSignal
 		log.Info("Stopping MQTT Events ...")
 
-		messagelayer.Tangle().Events.MessageSolid.Detach(onMessageSolid)
+		messagelayer.Tangle().Events.MessageAttached.Detach(onMessageAttachedClosure)
+		messagelayer.Tangle().Events.MessageSolid.Detach(onMessageSolidClosure)
+		messagelayer.Tangle().Events.MissingMessageReceived.Detach(onMissingMessageReceivedClosure)
+		messagelayer.Tangle().Events.MessageMissing.Detach(onMessageMissingClosure)
+		messagelayer.Tangle().Events.MessageUnsolidifiable.Detach(onMessageUnsolidifiableClosure)
+		messagelayer.Tangle().Events.MessageRemoved.Detach(onMessageRemovedClosure)
 
 		messageWorkerPool.StopAndWait()
 
@@ -121,6 +130,17 @@ func run(*node.Plugin) {
 		log.Panicf("Failed to start as daemon: %s", err)
 	}
 
+}
+
+func createEventsNewClosure() *events.Closure {
+	message := events.NewClosure(func(cachedMsgEvent *tangle.CachedMessageEvent) {
+		if _, added := messageWorkerPool.TrySubmit(cachedMsgEvent); added {
+			return // Avoid Release (done inside workerpool task)
+		}
+		cachedMsgEvent.MessageMetadata.Release()
+		cachedMsgEvent.Message.Release()
+	})
+	return message
 }
 
 func setupWebSocketRoute() {
