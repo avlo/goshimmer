@@ -147,17 +147,6 @@ func cachedMessageID() interface{} {
 	}
 }
 
-func createEventsNewClosure() *events.Closure {
-	message := events.NewClosure(func(cachedMsgEvent *tangle.CachedMessageEvent) {
-		if _, added := messageWorkerPool.TrySubmit(cachedMsgEvent); added {
-			return // Avoid Release (done inside workerpool task)
-		}
-		cachedMsgEvent.MessageMetadata.Release()
-		cachedMsgEvent.Message.Release()
-	})
-	return message
-}
-
 func setupWebSocketRoute() {
 
 	// Configure MQTT WebSocket route
