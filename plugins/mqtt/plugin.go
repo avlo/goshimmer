@@ -94,25 +94,34 @@ func run(*node.Plugin) {
 		log.Panicf("Failed to start as daemon: %s", err)
 	}
 
-	onMessageSolid := events.NewClosure(func(cachedMsgEvent *tangle.CachedMessageEvent) {
-		if _, added := messageWorkerPool.TrySubmit(cachedMsgEvent); added {
-			return // Avoid Release (done inside workerpool task)
-		}
-		cachedMsgEvent.MessageMetadata.Release()
-		cachedMsgEvent.Message.Release()
-	})
+	onMessageAttached := events.NewClosure(cachedMessageMetadata())
+	onMessageSolid := events.NewClosure(cachedMessageMetadata())
+	onMissingMessageReceived := events.NewClosure(cachedMessageMetadata())
+	onMessageMissing := events.NewClosure(cachedMessageID())
+	onMessageUnsolidifiable := events.NewClosure(cachedMessageID())
+	onMessageRemoved := events.NewClosure(cachedMessageID())
 
 	if err := daemon.BackgroundWorker("MQTT Events", func(shutdownSignal <-chan struct{}) {
 		log.Info("Starting MQTT Events ... done")
 
+		messagelayer.Tangle().Events.MessageSolid.Attach(onMessageAttached)
 		messagelayer.Tangle().Events.MessageSolid.Attach(onMessageSolid)
+		messagelayer.Tangle().Events.MessageSolid.Attach(onMissingMessageReceived)
+		messagelayer.Tangle().Events.MessageSolid.Attach(onMessageMissing)
+		messagelayer.Tangle().Events.MessageSolid.Attach(onMessageUnsolidifiable)
+		messagelayer.Tangle().Events.MessageSolid.Attach(onMessageRemoved)
 
 		messageWorkerPool.Start()
 
 		<-shutdownSignal
 		log.Info("Stopping MQTT Events ...")
 
+		messagelayer.Tangle().Events.MessageSolid.Detach(onMessageAttached)
 		messagelayer.Tangle().Events.MessageSolid.Detach(onMessageSolid)
+		messagelayer.Tangle().Events.MessageSolid.Detach(onMissingMessageReceived)
+		messagelayer.Tangle().Events.MessageSolid.Detach(onMessageMissing)
+		messagelayer.Tangle().Events.MessageSolid.Detach(onMessageUnsolidifiable)
+		messagelayer.Tangle().Events.MessageSolid.Detach(onMessageRemoved)
 
 		messageWorkerPool.StopAndWait()
 
@@ -120,7 +129,22 @@ func run(*node.Plugin) {
 	}, shutdown.PriorityMetrics); err != nil {
 		log.Panicf("Failed to start as daemon: %s", err)
 	}
+}
 
+func cachedMessageMetadata() interface{} {
+	return func(cachedMsgEvent *tangle.CachedMessageEvent) {
+		if _, added := messageWorkerPool.TrySubmit(cachedMsgEvent); added {
+			return // Avoid Release (done inside workerpool task)
+		}
+		cachedMsgEvent.MessageMetadata.Release()
+		cachedMsgEvent.Message.Release()
+	}
+}
+
+func cachedMessageID() interface{} {
+	return func(func(messageId *tangle.MessageID)) {
+		// no need to release here since MessageID is not a cached object of an object storage
+	}
 }
 
 func setupWebSocketRoute() {
