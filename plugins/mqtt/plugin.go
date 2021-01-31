@@ -94,34 +94,61 @@ func run(*node.Plugin) {
 		log.Panicf("Failed to start as daemon: %s", err)
 	}
 
+<<<<<<< HEAD
 	onMessageAttachedClosure := createEventsNewClosure()
 	onMessageSolidClosure := createEventsNewClosure()
 	onMissingMessageReceivedClosure := createEventsNewClosure()
 	onMessageMissingClosure := createEventsNewClosure()
 	onMessageUnsolidifiableClosure := createEventsNewClosure()
 	onMessageRemovedClosure := createEventsNewClosure()
+=======
+	onMessageAttached := events.NewClosure(cachedMessageMetadata())
+	onMessageSolid := events.NewClosure(cachedMessageMetadata())
+	onMissingMessageReceived := events.NewClosure(cachedMessageMetadata())
+	onMessageMissing := events.NewClosure(cachedMessageID())
+	onMessageUnsolidifiable := events.NewClosure(cachedMessageID())
+	onMessageRemoved := events.NewClosure(cachedMessageID())
+>>>>>>> feat/mqtt
 
 	if err := daemon.BackgroundWorker("MQTT Events", func(shutdownSignal <-chan struct{}) {
 		log.Info("Starting MQTT Events ... done")
 
+<<<<<<< HEAD
 		messagelayer.Tangle().Events.MessageAttached.Attach(onMessageAttachedClosure)
 		messagelayer.Tangle().Events.MessageSolid.Attach(onMessageSolidClosure)
 		messagelayer.Tangle().Events.MissingMessageReceived.Attach(onMissingMessageReceivedClosure)
 		messagelayer.Tangle().Events.MessageMissing.Attach(onMessageMissingClosure)
 		messagelayer.Tangle().Events.MessageUnsolidifiable.Attach(onMessageUnsolidifiableClosure)
 		messagelayer.Tangle().Events.MessageRemoved.Attach(onMessageRemovedClosure)
+=======
+		messagelayer.Tangle().Events.MessageSolid.Attach(onMessageAttached)
+		messagelayer.Tangle().Events.MessageSolid.Attach(onMessageSolid)
+		messagelayer.Tangle().Events.MessageSolid.Attach(onMissingMessageReceived)
+		messagelayer.Tangle().Events.MessageSolid.Attach(onMessageMissing)
+		messagelayer.Tangle().Events.MessageSolid.Attach(onMessageUnsolidifiable)
+		messagelayer.Tangle().Events.MessageSolid.Attach(onMessageRemoved)
+>>>>>>> feat/mqtt
 
 		messageWorkerPool.Start()
 
 		<-shutdownSignal
 		log.Info("Stopping MQTT Events ...")
 
+<<<<<<< HEAD
 		messagelayer.Tangle().Events.MessageAttached.Detach(onMessageAttachedClosure)
 		messagelayer.Tangle().Events.MessageSolid.Detach(onMessageSolidClosure)
 		messagelayer.Tangle().Events.MissingMessageReceived.Detach(onMissingMessageReceivedClosure)
 		messagelayer.Tangle().Events.MessageMissing.Detach(onMessageMissingClosure)
 		messagelayer.Tangle().Events.MessageUnsolidifiable.Detach(onMessageUnsolidifiableClosure)
 		messagelayer.Tangle().Events.MessageRemoved.Detach(onMessageRemovedClosure)
+=======
+		messagelayer.Tangle().Events.MessageSolid.Detach(onMessageAttached)
+		messagelayer.Tangle().Events.MessageSolid.Detach(onMessageSolid)
+		messagelayer.Tangle().Events.MessageSolid.Detach(onMissingMessageReceived)
+		messagelayer.Tangle().Events.MessageSolid.Detach(onMessageMissing)
+		messagelayer.Tangle().Events.MessageSolid.Detach(onMessageUnsolidifiable)
+		messagelayer.Tangle().Events.MessageSolid.Detach(onMessageRemoved)
+>>>>>>> feat/mqtt
 
 		messageWorkerPool.StopAndWait()
 
@@ -129,7 +156,22 @@ func run(*node.Plugin) {
 	}, shutdown.PriorityMetrics); err != nil {
 		log.Panicf("Failed to start as daemon: %s", err)
 	}
+}
 
+func cachedMessageMetadata() interface{} {
+	return func(cachedMsgEvent *tangle.CachedMessageEvent) {
+		if _, added := messageWorkerPool.TrySubmit(cachedMsgEvent); added {
+			return // Avoid Release (done inside workerpool task)
+		}
+		cachedMsgEvent.MessageMetadata.Release()
+		cachedMsgEvent.Message.Release()
+	}
+}
+
+func cachedMessageID() interface{} {
+	return func(func(messageId *tangle.MessageID)) {
+		// no need to release here since MessageID is not a cached object of an object storage
+	}
 }
 
 func createEventsNewClosure() *events.Closure {
