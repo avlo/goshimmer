@@ -41,13 +41,14 @@ services:
       --config=/tmp/config.json
       --database.directory=/tmp/mainnetdb
       --autopeering.seed=base58:8q491c3YWjbPwLmF2WD95YmCgh61j2kenCKHfGfByoWi
-      --node.enablePlugins=prometheus,spammer,faucet,syncbeacon
+      --node.enablePlugins=prometheus,spammer,faucet,syncbeacon,"webapi tools endpoint"
       --node.disablePlugins=syncbeaconfollower,clock
       --faucet.seed=7R1itJx5hVuo9w9hjg5cwKFmek4HMSoBDgJZN8hKGxih
       --valueLayer.snapshot.file=/tmp/assets/7R1itJx5hVuo9w9hjg5cwKFmek4HMSoBDgJZN8hKGxih.bin
       --syncbeacon.broadcastInterval=5
       --syncbeacon.startSynced=true
       --statement.writeStatement=true
+      --webapi.exportPath=/tmp/
     volumes:
       - ./config.docker.json:/tmp/config.json:ro
       - goshimmer-cache:/go
@@ -56,6 +57,8 @@ services:
       - "127.0.0.1:8080:8080/tcp" # web API
       - "127.0.0.1:8081:8081/tcp" # dashboard
       - "127.0.0.1:9311:9311/tcp" # prometheus
+      - "127.0.0.1:1883:1883/tcp" # mqtt
+      - "127.0.0.1:1888:1888/tcp" # ws-mqtt
     depends_on:
       - entry_node
 
@@ -66,10 +69,11 @@ services:
     command: >
       --config=/tmp/config.json
       --database.directory=/tmp/mainnetdb
-      --node.enablePlugins=bootstrap
+      --node.enablePlugins=bootstrap,"webapi tools endpoint"
       --valueLayer.snapshot.file=/tmp/assets/7R1itJx5hVuo9w9hjg5cwKFmek4HMSoBDgJZN8hKGxih.bin
       --node.disablePlugins=portcheck,clock
       --syncbeaconfollower.followNodes=EYsaGXnUVA9aTYL9FwYEvoQ8d1HCJveQVL7vogu6pqCP
+      --webapi.exportPath=/tmp/
     volumes:
       - ./config.docker.json:/tmp/config.json:ro
       - goshimmer-cache:/go
